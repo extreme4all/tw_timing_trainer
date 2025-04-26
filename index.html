@@ -195,6 +195,7 @@
 
     <script>
         (() => {
+            const VERSION = "1.0"; // Define current version of the game
             const fillBar = document.getElementById('fill-bar');
             const barText = document.getElementById('bar-text');
             const startBtn = document.getElementById('startPause');
@@ -203,14 +204,42 @@
             const logBox = document.getElementById('log');
             const statsBox = document.getElementById('stats');
 
-            const TOTAL = 5000;  // 5 seconds total countdown
-            const SEG = 1000;    // 1 second per segment
-            let start = 0, raf = 0, paused = false;
-            let clickAllowed = false, clicked = false;
-            let reactionTimes = [];
-            let lateReactionTimes = [];
-            let earlyReactionTimes = [];
-            let perfectCount = 0, goodCount = 0, earlyCount = 0, missedCount = 0;
+            const TOTAL = 5000;
+            const SEG = 1000;
+
+            let gameState = {
+                startTime: 0,
+                raf: 0,
+                paused: false,
+                clickAllowed: false,
+                clicked: false,
+                reactionTimes: [],
+                earlyTimes: [],
+                lateTimes: [],
+                stats: { perfect: 0, good: 0, early: 0, missed: 0 }
+            };
+
+            // Check the stored version in localStorage and clear if it doesn't match
+            const storedVersion = localStorage.getItem('gameVersion');
+            if (storedVersion !== VERSION) {
+                console.log(`Version mismatch: Resetting game state.`);
+                localStorage.clear(); // Clear all data in case of version mismatch
+                localStorage.setItem('gameVersion', VERSION); // Store the current version
+            }
+
+            // Load game state from localStorage if available
+            gameState.reactionTimes = JSON.parse(localStorage.getItem('reactionTimes')) || [];
+            gameState.earlyTimes = JSON.parse(localStorage.getItem('earlyTimes')) || [];
+            gameState.lateTimes = JSON.parse(localStorage.getItem('lateTimes')) || [];
+            gameState.stats = JSON.parse(localStorage.getItem('stats')) || { perfect: 0, good: 0, early: 0, missed: 0 };
+
+            function saveToLocalStorage() {
+                localStorage.setItem('reactionTimes', JSON.stringify(gameState.reactionTimes));
+                localStorage.setItem('earlyTimes', JSON.stringify(gameState.earlyTimes));
+                localStorage.setItem('lateTimes', JSON.stringify(gameState.lateTimes));
+                localStorage.setItem('stats', JSON.stringify(gameState.stats));
+                localStorage.setItem('gameVersion', VERSION); // Save the current version
+            }
 
             function playBeep() {
                 const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -231,7 +260,6 @@
                 const minutes = Math.floor(remaining / 60000);
                 const seconds = Math.floor((remaining % 60000) / 1000);
                 const msCountdown = Math.floor((remaining % 1000));
-
                 return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
                     + `-${String(d.getDate()).padStart(2, '0')}`
                     + `:${String(d.getHours()).padStart(2, '0')}`
@@ -241,28 +269,19 @@
             }
 
             function updateStats() {
-                if (earlyReactionTimes.length === 0) {
+                const { earlyTimes, lateTimes, stats } = gameState;
+
+                if (earlyTimes.length === 0) {
                     statsBox.innerHTML = `<b>Avg:</b> 0ms <b>Best:</b> 0ms <b>Worst:</b> 0ms<br><b>Perfect:</b> 0 <b>Good:</b> 0 <b>Early:</b> 0 <b>Missed:</b> 0`;
                     return;
                 }
 
-                // Calculate average reaction time from earlyReactionTimes
-                const avg = earlyReactionTimes.reduce((a, b) => a + b, 0) / earlyReactionTimes.length;
+                const avg = earlyTimes.reduce((a, b) => a + b, 0) / earlyTimes.length;
+                const best = Math.max(...earlyTimes);
+                let worst = lateTimes.length > 0 ? Math.max(...lateTimes) : Math.min(...earlyTimes);
 
-                // Find the "best" time (highest negative time including 0) from earlyReactionTimes
-                const best = Math.max(...earlyReactionTimes);
-
-                // Find the worst time (highest absolute value) from reactionTimes
-                let worst = 0;
-
-                if (lateReactionTimes.length > 0) {
-                    worst = Math.max(...lateReactionTimes);
-                } else if (earlyReactionTimes.length > 0) {
-                    worst = Math.min(...earlyReactionTimes);
-                }
-
-                // Update stats display
-                statsBox.innerHTML = `<b>Avg:</b> ${avg.toFixed(2)}ms <b>Best:</b> ${best.toFixed(2)}ms <b>Worst:</b> ${worst.toFixed(2)}ms<br><b>Perfect:</b> ${perfectCount} <b>Good:</b> ${goodCount} <b>Early:</b> ${earlyCount} <b>Missed:</b> ${missedCount}`;
+                statsBox.innerHTML = `<b>Avg:</b> ${avg.toFixed(2)}ms <b>Best:</b> ${best.toFixed(2)}ms <b>Worst:</b> ${worst.toFixed(2)}ms<br>`
+                    + `<b>Perfect:</b> ${stats.perfect} <b>Good:</b> ${stats.good} <b>Early:</b> ${stats.early} <b>Missed:</b> ${stats.missed}`;
             }
 
             function log(msg, color = 'black') {
@@ -271,16 +290,16 @@
                 el.innerHTML = msg;
                 logBox.appendChild(el);
                 logBox.scrollTop = logBox.scrollHeight;
+                saveToLocalStorage();
             }
 
             function animate(now) {
-                if (paused) return;
-                const t = now - start;
+                if (gameState.paused) return;
+                const t = now - gameState.startTime;
 
-                // Check if the timer has reached the total time
                 if (t >= TOTAL + 100) {
-                    if (!clicked) {
-                        missedCount++;
+                    if (!gameState.clicked) {
+                        gameState.stats.missed++;
                         log(`❌ Missed! >100ms`, 'gray');
                         updateStats();
                     }
@@ -292,146 +311,90 @@
                 const progress = segElapsed / SEG;
                 const isGreen = rem <= SEG;
 
-                // Color update
                 fillBar.style.backgroundColor = isGreen ? 'green' : 'orange';
-                if (isGreen && !clickAllowed) {
-                    clickAllowed = true;
+                if (isGreen && !gameState.clickAllowed) {
+                    gameState.clickAllowed = true;
                     playBeep();
                 }
 
-                // Width update
                 fillBar.style.width = `${progress * 100}%`;
-
-                // Text update (centered) with countdown (mm:ss.ms)
                 barText.textContent = fmtDT(Date.now(), rem);
 
-                raf = requestAnimationFrame(animate);
+                gameState.raf = requestAnimationFrame(animate);
             }
 
             function startCycle() {
-                cancelAnimationFrame(raf);
-                start = performance.now();
-                clickAllowed = false;
-                clicked = false;
+                cancelAnimationFrame(gameState.raf);
+                gameState.startTime = performance.now();
+                gameState.clickAllowed = false;
+                gameState.clicked = false;
                 fillBar.style.width = '0%';
-                raf = requestAnimationFrame(animate);
-            }
-
-            function triggerEasterEggConfetti() {
-                const confettiContainer = document.createElement('div');
-                confettiContainer.style.position = 'fixed';
-                confettiContainer.style.top = '0';
-                confettiContainer.style.left = '0';
-                confettiContainer.style.width = '100%';
-                confettiContainer.style.height = '100%';
-                confettiContainer.style.pointerEvents = 'none';
-                confettiContainer.style.zIndex = '9999';
-                document.body.appendChild(confettiContainer);
-
-                const confettiScript = document.createElement('script');
-                confettiScript.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
-                confettiScript.onload = () => {
-                    const confetti = window.confetti;
-                    confetti({
-                        particleCount: 100,
-                        spread: 70,
-                        origin: { y: 0.6 }
-                    });
-                    setTimeout(() => confettiContainer.remove(), 3000); // Remove confetti after 3 seconds
-                };
-                document.body.appendChild(confettiScript);
-            }
-
-            function triggerEasterEggShake() {
-                // Add shake animation
-                attackBtn.classList.add('shake');
-
-                // Flash the background color with a subtle transition
-                const originalBg = document.body.style.backgroundColor;
-                document.body.style.transition = 'background-color 0.5s ease';
-                document.body.style.backgroundColor = '#e6ffe6'; // Soft red/pink color
-                setTimeout(() => {
-                    document.body.style.backgroundColor = originalBg; // Revert to original
-                }, 500);
-
-                // Remove shake animation after 1 second
-                setTimeout(() => attackBtn.classList.remove('shake'), 1000);
-            }
-
-            function triggerEasterEgg() {
-                // modulus 5 trigger
-                if (perfectCount % 5 === 0 && perfectCount > 0) {
-                    triggerEasterEggConfetti();
-                } else {
-                    triggerEasterEggShake();
-                }
+                gameState.raf = requestAnimationFrame(animate);
             }
 
             function handleAttack() {
-                if (!clickAllowed || clicked) return;
+                if (!gameState.clickAllowed || gameState.clicked) return;
                 const now = performance.now();
-                const delta = now - (start + TOTAL);
-                clicked = true;
-                reactionTimes.push(delta);
-
-                if (delta <= 0) {
-                    earlyReactionTimes.push(delta);
-                } else {
-                    lateReactionTimes.push(delta);
-                }
+                const delta = now - (gameState.startTime + TOTAL);
+                gameState.clicked = true;
+                gameState.reactionTimes.push(delta);
 
                 let color = 'black';
                 let msg = '';
 
                 if (delta > -1 && delta <= 0) {
-                    perfectCount++;
+                    gameState.stats.perfect++;
                     color = 'green';
                     msg = `🔥 Perfect! ${delta.toFixed(2)}ms`;
-                    triggerEasterEgg();
                 } else if (delta >= -10 && delta <= 0) {
-                    goodCount++;
+                    gameState.stats.good++;
                     color = 'green';
                     msg = `🔥 Good! ${delta.toFixed(2)}ms`;
                 } else if (delta < 0) {
-                    earlyCount++;
+                    gameState.stats.early++;
                     color = 'orange';
                     msg = `⚡ Early! -${Math.abs(delta).toFixed(2)}ms`;
                 } else {
-                    missedCount++;
+                    gameState.stats.missed++;
                     color = 'red';
                     msg = `🐢 Late! ${delta.toFixed(2)}ms`;
                 }
+
+                if (delta <= 0) gameState.earlyTimes.push(delta);
+                else gameState.lateTimes.push(delta);
 
                 log(msg, color);
                 updateStats();
             }
 
             startBtn.addEventListener('click', () => {
-                if (!raf || paused) {
-                    paused = false;
+                if (!gameState.raf || gameState.paused) {
+                    gameState.paused = false;
                     startCycle();
                     startBtn.textContent = 'Pause';
                 } else {
-                    paused = true;
+                    gameState.paused = true;
                     startBtn.textContent = 'Start';
                     barText.textContent = 'Paused';
                 }
             });
 
             resetBtn.addEventListener('click', () => {
-                reactionTimes = [];
-                earlyReactionTimes = [];
-                lateReactionTimes = [];
-                perfectCount = 0;
-                goodCount = 0;
-                missedCount = 0;
-                earlyCount = 0;
-                logBox.innerHTML = "<strong>Log:</strong>"; // Clear the log
+                Object.assign(gameState, {
+                    reactionTimes: [],
+                    earlyTimes: [],
+                    lateTimes: [],
+                    stats: { perfect: 0, good: 0, early: 0, missed: 0 }
+                });
+                logBox.innerHTML = "<strong>Log:</strong>";
                 updateStats();
+                saveToLocalStorage();
             });
 
             attackBtn.addEventListener('mouseup', handleAttack);
 
+            // Initialize stats from localStorage
+            updateStats();
         })();
     </script>
 </body>
