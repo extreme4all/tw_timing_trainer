@@ -140,6 +140,32 @@
                 font-size: 24px;
             }
         }
+
+        @keyframes shake {
+            0% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-5px);
+            }
+
+            50% {
+                transform: translateX(5px);
+            }
+
+            75% {
+                transform: translateX(-5px);
+            }
+
+            100% {
+                transform: translateX(0);
+            }
+        }
+
+        .shake {
+            animation: shake 0.5s ease-in-out;
+        }
     </style>
 </head>
 
@@ -291,6 +317,56 @@
                 raf = requestAnimationFrame(animate);
             }
 
+            function triggerEasterEggConfetti() {
+                const confettiContainer = document.createElement('div');
+                confettiContainer.style.position = 'fixed';
+                confettiContainer.style.top = '0';
+                confettiContainer.style.left = '0';
+                confettiContainer.style.width = '100%';
+                confettiContainer.style.height = '100%';
+                confettiContainer.style.pointerEvents = 'none';
+                confettiContainer.style.zIndex = '9999';
+                document.body.appendChild(confettiContainer);
+
+                const confettiScript = document.createElement('script');
+                confettiScript.src = 'https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js';
+                confettiScript.onload = () => {
+                    const confetti = window.confetti;
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                    setTimeout(() => confettiContainer.remove(), 3000); // Remove confetti after 3 seconds
+                };
+                document.body.appendChild(confettiScript);
+            }
+
+            function triggerEasterEggShake() {
+                // Add shake animation
+                attackBtn.classList.add('shake');
+
+                // Flash the background color with a subtle transition
+                const originalBg = document.body.style.backgroundColor;
+                document.body.style.transition = 'background-color 0.5s ease';
+                document.body.style.backgroundColor = '#e6ffe6'; // Soft red/pink color
+                setTimeout(() => {
+                    document.body.style.backgroundColor = originalBg; // Revert to original
+                }, 500);
+
+                // Remove shake animation after 1 second
+                setTimeout(() => attackBtn.classList.remove('shake'), 1000);
+            }
+
+            function triggerEasterEgg() {
+                // modulus 5 trigger
+                if (perfectCount % 5 === 0 && perfectCount > 0) {
+                    triggerEasterEggConfetti();
+                } else {
+                    triggerEasterEggShake();
+                }
+            }
+
             function handleAttack() {
                 if (!clickAllowed || clicked) return;
                 const now = performance.now();
@@ -311,6 +387,7 @@
                     perfectCount++;
                     color = 'green';
                     msg = `🔥 Perfect! ${delta.toFixed(2)}ms`;
+                    triggerEasterEgg();
                 } else if (delta >= -10 && delta <= 0) {
                     goodCount++;
                     color = 'green';
@@ -324,7 +401,6 @@
                     color = 'red';
                     msg = `🐢 Late! ${delta.toFixed(2)}ms`;
                 }
-
 
                 log(msg, color);
                 updateStats();
