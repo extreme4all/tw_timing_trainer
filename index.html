@@ -213,7 +213,6 @@
                 paused: false,
                 clickAllowed: false,
                 clicked: false,
-                reactionTimes: [],
                 earlyTimes: [],
                 lateTimes: [],
                 stats: { perfect: 0, good: 0, early: 0, missed: 0 }
@@ -228,13 +227,11 @@
             }
 
             // Load game state from localStorage if available
-            gameState.reactionTimes = JSON.parse(localStorage.getItem('reactionTimes')) || [];
             gameState.earlyTimes = JSON.parse(localStorage.getItem('earlyTimes')) || [];
             gameState.lateTimes = JSON.parse(localStorage.getItem('lateTimes')) || [];
             gameState.stats = JSON.parse(localStorage.getItem('stats')) || { perfect: 0, good: 0, early: 0, missed: 0 };
 
             function saveToLocalStorage() {
-                localStorage.setItem('reactionTimes', JSON.stringify(gameState.reactionTimes));
                 localStorage.setItem('earlyTimes', JSON.stringify(gameState.earlyTimes));
                 localStorage.setItem('lateTimes', JSON.stringify(gameState.lateTimes));
                 localStorage.setItem('stats', JSON.stringify(gameState.stats));
@@ -330,6 +327,7 @@
                 fillBar.style.width = '0%';
                 gameState.raf = requestAnimationFrame(animate);
             }
+            
             function triggerEasterEggConfetti() {
                 const confettiContainer = document.createElement('div');
                 confettiContainer.style.position = 'fixed';
@@ -385,7 +383,6 @@
                 const now = performance.now();
                 const delta = now - (gameState.startTime + TOTAL);
                 gameState.clicked = true;
-                gameState.reactionTimes.push(delta);
 
                 let color = 'black';
                 let msg = '';
@@ -431,7 +428,6 @@
 
             resetBtn.addEventListener('click', () => {
                 Object.assign(gameState, {
-                    reactionTimes: [],
                     earlyTimes: [],
                     lateTimes: [],
                     stats: { perfect: 0, good: 0, early: 0, missed: 0 }
