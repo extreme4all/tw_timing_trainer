@@ -250,10 +250,12 @@
             function animate(now) {
                 if (paused) return;
                 const t = now - start;
-                if (t >= TOTAL) {
+                
+                // Check if the timer has reached the total time
+                if (t >= TOTAL + 100) {
                     if (!clicked) {
                         missedCount++;
-                        log(`❌ Missed!`, 'gray');
+                        log(`❌ Missed! >100ms`, 'gray');
                         updateStats();
                     }
                     return startCycle();
