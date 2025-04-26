@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>TribalWars Timing Trainer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      margin: 40px 10px 0; /* smaller side margins on mobile */
+    }
+
+    #bar-container {
+      width: 100%;
+      max-width: 400px;
+      height: 30px;
+      background: #ccc;
+      border-radius: 5px;
+      margin: auto;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #fill-bar {
+      height: 100%;
+      width: 0%;
+      background-color: orange;
+      transition: width 0s;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 1;
+    }
+
+    #bar-text {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: absolute;
+      top: 0;
+      left: 0;
+      font-weight: bold;
+      font-size: 14px;
+      z-index: 2;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    #controls {
+      margin-top: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button {
+      padding: 10px 16px;
+      font-size: 16px;
+      margin: 5px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+    }
+
+    #attackButton {
+      margin-top: 20px;
+      padding: 14px 24px;
+      font-size: 20px;
+      background-color: red;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    #log {
+      margin: 20px auto;
+      padding: 10px;
+      width: 100%;
+      max-width: 420px;
+      max-height: 200px;
+      overflow-y: auto;
+      border: 1px solid #ccc;
+      text-align: left;
+      font-size: 14px;
+      background: #f9f9f9;
+      box-sizing: border-box;
+    }
+
+    #stats {
+      margin-top: 10px;
+      font-size: 14px;
+      word-break: break-word;
+    }
+
+    @media (min-width: 600px) {
+      button {
+        font-size: 16px;
+      }
+
+      #attackButton {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<h2>TribalWars Timing Trainer</h2>
+
+<div id="bar-container">
+  <div id="fill-bar"></div>
+  <div id="bar-text">--</div>
+</div>
+
+<div id="controls">
+  <button id="startPause">Start</button>
+  <button id="reset">Reset Stats</button>
+</div>
+
+<button id="attackButton">Attack!</button>
+
+<div id="stats">
+  Avg: 0ms Best: 0ms Worst: 0ms
+  <br>
+  Perfect: 0 Good: 0 Early: 0 Missed: 0
+</div>
+
+<div id="log"><strong>Log:</strong></div>
+
+<!-- Your JavaScript remains 100% the same -->
+<script>
+    (() => {
+      const fillBar = document.getElementById('fill-bar');
+      const barText = document.getElementById('bar-text');
+      const startBtn = document.getElementById('startPause');
+      const resetBtn = document.getElementById('reset');
+      const attackBtn = document.getElementById('attackButton');
+      const logBox = document.getElementById('log');
+      const statsBox = document.getElementById('stats');
+    
+      const TOTAL = 5000;  // 5 seconds total countdown
+      const SEG = 1000;    // 1 second per segment
+      let start = 0, raf = 0, paused = false;
+      let clickAllowed = false, clicked = false;
+      let reactionTimes = [];
+      let perfectCount = 0, goodCount = 0, earlyCount = 0, missedCount = 0;
+    
+      function playBeep() {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, ctx.currentTime);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.1);
+        osc.stop(ctx.currentTime + 0.1);
+      }
+    
+      function fmtDT(now, remaining){
+        const d = new Date(now);
+        const ms = String(d.getMilliseconds()).padStart(3, '0');
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        const msCountdown = Math.floor((remaining % 1000));
+    
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+             + `-${String(d.getDate()).padStart(2, '0')}`
+             + `:${String(d.getHours()).padStart(2, '0')}`
+             + `:${String(d.getMinutes()).padStart(2, '0')}`
+             + `:${String(d.getSeconds()).padStart(2, '0')}`
+             + `:${ms} (${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(msCountdown).padStart(3, '0')})`;
+      }
+    
+        function updateStats(){
+          if (reactionTimes.length === 0) {
+            statsBox.innerHTML = `Avg: 0ms Best: 0ms Worst: 0ms<br>Perfect: 0 Good: 0 Early: 0 Missed: 0`;
+            return;
+          }
+    
+          // Calculate average reaction time
+          const avg = reactionTimes.reduce((a, b) => a + b, 0) / reactionTimes.length;
+    
+          // Find the "best" time (highest negative time including 0)
+          const best = Math.max(...reactionTimes.filter(time => time <= 0));
+    
+          // Find the worst time (highest absolute value)
+          const worst = Math.max(...reactionTimes.map(Math.abs));
+    
+          // Update stats display
+          statsBox.innerHTML = `Avg: ${avg.toFixed(2)}ms Best: ${best.toFixed(2)}ms Worst: ${worst.toFixed(2)}ms<br>Perfect: ${perfectCount} Good: ${goodCount} Early: ${earlyCount} Missed: ${missedCount}`;
+        }
+    
+    
+      function log(msg, color='black'){
+        const el = document.createElement('div');
+        el.style.color = color;
+        el.innerHTML = msg;
+        logBox.appendChild(el);
+        logBox.scrollTop = logBox.scrollHeight;
+      }
+    
+      function animate(now){
+        if (paused) return;
+        const t = now - start;
+        if (t >= TOTAL) {
+          if (!clicked) {
+            missedCount++;
+            log(`❌ Missed!`, 'gray');
+            updateStats();
+          }
+          return startCycle();
+        }
+    
+        const rem = Math.max(0, TOTAL - t);
+        const segElapsed = t % SEG;
+        const progress = segElapsed / SEG;
+        const isGreen = rem <= SEG;
+    
+        // Color update
+        fillBar.style.backgroundColor = isGreen ? 'green' : 'orange';
+        if (isGreen && !clickAllowed) {
+          clickAllowed = true;
+          playBeep();
+        }
+    
+        // Width update
+        fillBar.style.width = `${progress * 100}%`;
+    
+        // Text update (centered) with countdown (mm:ss.ms)
+        barText.textContent = fmtDT(Date.now(), rem);
+    
+        raf = requestAnimationFrame(animate);
+      }
+    
+      function startCycle(){
+        cancelAnimationFrame(raf);
+        start = performance.now();
+        clickAllowed = false;
+        clicked = false;
+        fillBar.style.width = '0%';
+        raf = requestAnimationFrame(animate);
+      }
+    
+      function handleAttack(){
+        if (!clickAllowed || clicked) return;
+        const now = performance.now();
+        const delta = now - (start + TOTAL);
+        clicked = true;
+        reactionTimes.push(delta);
+    
+        let color = 'black';
+        let msg = '';
+    
+        if (delta > -1 && delta <= 0) {
+          perfectCount++;
+          color = 'green';
+          msg = `🔥 Perfect! ${delta.toFixed(2)}ms`;
+        } else if (delta >= -10 && delta <= 0) {
+          goodCount++;
+          color = 'green';
+          msg = `🔥 Good! ${delta.toFixed(2)}ms`;
+        } else if (delta < 0) {
+          earlyCount++;
+          color = 'orange';
+          msg = `⚡ Early! -${Math.abs(delta).toFixed(2)}ms`;
+        } else {
+          missedCount++;
+          color = 'red';
+          msg = `🐢 Late! ${delta.toFixed(2)}ms`;
+        }
+    
+    
+        log(msg, color);
+        updateStats();
+      }
+    
+      startBtn.addEventListener('click', () => {
+        if (!raf || paused) {
+          paused = false;
+          startCycle();
+          startBtn.textContent = 'Pause';
+        } else {
+          paused = true;
+          startBtn.textContent = 'Start';
+          barText.textContent = 'Paused';
+        }
+      });
+    
+      resetBtn.addEventListener('click', () => {
+        reactionTimes = [];
+        perfectCount = 0;
+        goodCount = 0;
+        missedCount = 0;
+        earlyCount = 0;
+        logBox.innerHTML = "<strong>Log:</strong>"; // Clear the log
+        updateStats();
+      });
+    
+      attackBtn.addEventListener('mouseup', handleAttack);
+    
+    })();
+    </script>
+    
+
+</body>
+</html>
