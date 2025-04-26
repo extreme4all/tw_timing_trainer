@@ -160,9 +160,9 @@
     <button id="attackButton">Attack!</button>
 
     <div id="stats">
-        Avg: 0ms Best: 0ms Worst: 0ms
+        <b>Avg:</b> 0ms <b>Best:</b> 0ms <b>Worst:</b> 0ms
         <br>
-        Perfect: 0 Good: 0 Early: 0 Missed: 0
+        <b>Perfect:</b> 0 <b>Good:</b> 0 <b>Early:</b> 0 <b>Missed:</b> 0
     </div>
 
     <div id="log"><strong>Log:</strong></div>
@@ -216,7 +216,7 @@
 
             function updateStats() {
                 if (earlyReactionTimes.length === 0) {
-                    statsBox.innerHTML = `Avg: 0ms Best: 0ms Worst: 0ms<br>Perfect: 0 Good: 0 Early: 0 Missed: 0`;
+                    statsBox.innerHTML = `<b>Avg:</b> 0ms <b>Best:</b> 0ms <b>Worst:</b> 0ms<br><b>Perfect:</b> 0 <b>Good:</b> 0 <b>Early:</b> 0 <b>Missed:</b> 0`;
                     return;
                 }
 
@@ -236,7 +236,7 @@
                 }
 
                 // Update stats display
-                statsBox.innerHTML = `Avg: ${avg.toFixed(2)}ms Best: ${best.toFixed(2)}ms Worst: ${worst.toFixed(2)}ms<br>Perfect: ${perfectCount} Good: ${goodCount} Early: ${earlyCount} Missed: ${missedCount}`;
+                statsBox.innerHTML = `<b>Avg:</b> ${avg.toFixed(2)}ms <b>Best:</b> ${best.toFixed(2)}ms <b>Worst:</b> ${worst.toFixed(2)}ms<br><b>Perfect:</b> ${perfectCount} <b>Good:</b> ${goodCount} <b>Early:</b> ${earlyCount} <b>Missed:</b> ${missedCount}`;
             }
 
             function log(msg, color = 'black') {
@@ -250,7 +250,7 @@
             function animate(now) {
                 if (paused) return;
                 const t = now - start;
-                
+
                 // Check if the timer has reached the total time
                 if (t >= TOTAL + 100) {
                     if (!clicked) {
