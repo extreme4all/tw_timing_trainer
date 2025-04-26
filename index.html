@@ -197,7 +197,13 @@
                 const best = Math.max(...earlyReactionTimes);
 
                 // Find the worst time (highest absolute value) from reactionTimes
-                const worst = Math.max(...reactionTimes.map(Math.abs));
+                let worst = 0;
+
+                if (lateReactionTimes.length > 0) {
+                    worst = Math.max(...lateReactionTimes);
+                } else if (earlyReactionTimes.length > 0) {
+                    worst = Math.min(...earlyReactionTimes);
+                }
 
                 // Update stats display
                 statsBox.innerHTML = `Avg: ${avg.toFixed(2)}ms Best: ${best.toFixed(2)}ms Worst: ${worst.toFixed(2)}ms<br>Perfect: ${perfectCount} Good: ${goodCount} Early: ${earlyCount} Missed: ${missedCount}`;
@@ -259,8 +265,8 @@
                 const delta = now - (start + TOTAL);
                 clicked = true;
                 reactionTimes.push(delta);
-                
-                if (delta <= 0){
+
+                if (delta <= 0) {
                     earlyReactionTimes.push(delta);
                 } else {
                     lateReactionTimes.push(delta);
